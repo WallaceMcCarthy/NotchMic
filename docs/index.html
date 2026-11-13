@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NotchMic</title>
+<meta name="description" content="Tap your MacBook twice and start talking. A tiny free macOS app that turns your laptop into a Dictation switch.">
+<meta property="og:title" content="NotchMic">
+<meta property="og:description" content="Tap your MacBook twice. Start talking.">
+<meta property="og:image" content="https://wallacemccarthy.github.io/NotchMic/icon.png">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --aluminum: #E4E6EA;
+  --aluminum-deep: #CDD0D6;
+  --bezel: #1A1B1F;
+  --glass: #22242B;
+  --ink: #23252B;
+  --ink-soft: #565A64;
+  --blue: #5EA2FF;
+  --blue-ink: #1F63C9;
+  --orange: #FF9F0A;
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--aluminum);
+  background-image: linear-gradient(180deg, #EEF0F3 0%, var(--aluminum) 40%, var(--aluminum-deep) 100%);
+  color: var(--ink);
+  font: 400 1.125rem/1.6 var(--body);
+}
+a { color: var(--blue-ink); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 6px; }
+
+/* The hero is the top of a MacBook screen */
+.screen {
+  position: relative;
+  background: var(--bezel);
+  padding: 0 clamp(14px, 2.4vw, 28px) clamp(14px, 2.4vw, 28px);
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 30px 60px -30px rgba(20, 22, 30, .55);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.menubar {
+  position: relative;
+  height: 38px;
+  display: flex;
+  justify-content: center;
+}
+.notch {
+  --w: clamp(150px, 18vw, 210px);
+  width: var(--w);
+  height: 34px;
+  background: #000;
+  border-radius: 0 0 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.cam { width: 9px; height: 9px; border-radius: 50%; background: #2C2E36; box-shadow: inset 0 0 0 2px #1E2027; }
+.inuse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 10px var(--orange);
+  opacity: 0; transform: scale(.4);
+  transition: opacity .25s, transform .25s;
+}
+.listening .inuse { opacity: 1; transform: scale(1); }
+.micbtn {
+  position: absolute;
+  top: 2px;
+  left: calc(50% + clamp(150px, 18vw, 210px) / 2 + 6px);
+  width: 34px; height: 34px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, .4);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: color .2s, background .2s;
+}
+.micbtn:hover { color: #fff; }
+.listening .micbtn { color: #fff; background: rgba(94, 162, 255, .18); }
+.micbtn svg { width: 15px; height: 15px; }
+
+.glass {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, #2B2E38 0%, var(--glass) 55%, #191A20 100%);
+  border-radius: 12px;
+  min-height: clamp(380px, 62vh, 620px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(28px, 6vw, 80px);
+  cursor: pointer;
+}
+.ripples { position: absolute; inset: 0; pointer-events: none; }
+.ripples span {
+  position: absolute;
+  width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 2px solid var(--blue);
+  opacity: 0;
+  animation: ring .7s ease-out forwards;
+}
+@keyframes ring { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(3.2); } }
+
+h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 8.4vw, 7rem);
+  line-height: .98;
+  letter-spacing: -0.03em;
+  color: #F4F6FA;
+  max-width: 11ch;
+  min-height: 2em;
+}
+.caret {
+  display: inline-block;
+  width: .08em; height: .85em;
+  margin-left: .04em;
+  vertical-align: -0.06em;
+  background: var(--blue);
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.heard {
+  margin: 1.4rem 0 0;
+  max-width: 34ch;
+  min-height: 3.2em;
+  font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+  color: #AEB4C2;
+}
+.hint {
+  margin: 2rem 0 0;
+  font-size: .95rem;
+  color: #7D8392;
+}
+.hint kbd {
+  font: inherit;
+  color: #C9CEDA;
+  border: 1px solid #3A3D48;
+  border-radius: 6px;
+  padding: 0 .4em;
+}
+
+/* Below the screen: quiet aluminum page */
+main { padding: 0 clamp(20px, 5vw, 48px); }
+.col { max-width: 68ch; margin: 0 auto; }
+.intro {
+  padding: clamp(56px, 9vw, 104px) 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  align-items: start;
+}
+.intro img { width: 96px; height: 96px; }
+.lede { margin: 0; font-size: clamp(1.25rem, 2.2vw, 1.5rem); line-height: 1.45; }
+.get {
+  margin-top: 28px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px;
+}
+.download {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 24px;
+  border-radius: 14px;
+  background: var(--bezel);
+  color: #fff;
+  font: 700 1.1rem var(--body);
+  text-decoration: none;
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 10px 24px -12px rgba(20,22,30,.6);
+}
+.download:hover { background: #000; }
+.download svg { width: 18px; height: 18px; }
+.req { color: var(--ink-soft); font-size: 1rem; }
+
+h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.7rem, 3.4vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  margin: 0 0 18px;
+}
+section { padding-top: clamp(64px, 9vw, 96px); }
+.ways { list-style: none; margin: 0; padding: 0; }
+.ways li {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 18px;
+  padding: 20px 0;
+  border-top: 1px solid rgba(35, 37, 43, .14);
+}
+.ways li:last-child { border-bottom: 1px solid rgba(35, 37, 43, .14); }
+.ways svg { width: 56px; height: 56px; }
+.ways h3 { margin: 0 0 4px; font: 700 1.15rem var(--body); }
+.ways p { margin: 0; color: var(--ink-soft); }
+
+figure { margin: 8px 0 26px; }
+.trace { width: 100%; height: auto; display: block; }
+figcaption { font-size: .95rem; color: var(--ink-soft); margin-top: 8px; }
+ol.steps { margin: 0; padding-left: 1.4em; }
+ol.steps li { padding-left: .3em; margin-bottom: .7em; }
+ol.steps li::marker { font-family: var(--display); font-weight: 700; color: var(--blue-ink); }
+code {
+  font: .92em ui-monospace, "SF Mono", Menlo, monospace;
+  background: rgba(35, 37, 43, .08);
+  border-radius: 5px;
+  padding: .1em .35em;
+}
+pre {
+  background: var(--bezel);
+  color: #E7EAF0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-size: .95rem;
+}
+pre code { background: none; padding: 0; color: inherit; }
+footer {
+  padding: clamp(64px, 9vw, 96px) 0 48px;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+@media (max-width: 560px) {
+  .intro { grid-template-columns: 1fr; }
+  .intro img { width: 72px; height: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
+  .ripples span { display: none; }
+  .inuse, .micbtn { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="screen" id="screen">
+  <div class="menubar">
+    <div class="notch"><span class="cam"></span><span class="inuse" aria-hidden="true"></span></div>
+    <button class="micbtn" id="mic" aria-pressed="false" aria-label="Try it: toggle listening">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm7-4a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.93V20H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-2.07A7 7 0 0 0 19 11Z"/></svg>
+    </button>
+  </div>
+  <div class="glass" id="glass">
+    <div class="ripples" id="ripples" aria-hidden="true"></div>
+    <h1 id="headline" aria-label="Tap twice. Start talking.">Tap twice. Start talking.</h1>
+    <p class="heard" id="heard" aria-live="polite"></p>
+    <p class="hint" id="hint">Double-click or double-tap this screen, or the mic by the notch, to try it.</p>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <div class="intro">
+      <img src="icon.png" alt="NotchMic icon" width="96" height="96">
+      <div>
+        <p class="lede">NotchMic turns your MacBook into a Dictation switch. Knock twice on the laptop and macOS starts listening. Knock twice again and it stops. Your words land wherever your cursor is.</p>
+        <div class="get">
+          <a class="download" href="https://github.com/WallaceMcCarthy/NotchMic/releases/latest/download/NotchMic.zip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg>
+            Download NotchMic
+          </a>
+          <span class="req">Free and open source. Apple-silicon MacBook, macOS 13 or later.</span>
+        </div>
+      </div>
+    </div>
+
+    <section aria-labelledby="ways">
+      <h2 id="ways">Two ways in, and typing stays out of it</h2>
+      <ul class="ways">
+        <li>
+          <svg viewBox="0 0 56 56" aria-hidden="true"><rect x="6" y="18" width="44" height="26" rx="5" fill="#1A1B1F"/><circle cx="22" cy="31" r="4" fill="#5EA2FF"/><circle cx="34" cy="31" r="4" fill="#5EA2FF" opacity=".55"/></svg>
+          <div><h3>Double-tap the laptop</h3><p>Two firm taps on the body, about as fast as a double-click. NotchMic feels them through the motion sensor already inside your MacBook.</p></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 56 56" aria-hidden="true"><rect x="4" y="14" width="48" height="10" rx="3" fill="#CDD0D6"/><rect x="18" y="14" width="20" height="8" rx="3" fill="#000"/><circle cx="44" cy="19" r="3.4" fill="#1F63C9"/><path d="M44 30v10" stroke="#23252B" stroke-width="2.4" stroke-linecap="round"/><path d="M40 34l4-4 4 4" stroke="#23252B" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div><h3>Click beside the notch</h3><p>A faint mic sits just right of the camera notch. Click once to start, click again to stop.</p></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 56 56" aria-hidden="true"><rect x="6" y="16" width="44" height="26" rx="5" fill="#CDD0D6"/><g fill="#23252B"><rect x="11" y="21" width="6" height="5" rx="1.5"/><rect x="19" y="21" width="6" height="5" rx="1.5"/><rect x="27" y="21" width="6" height="5" rx="1.5"/><rect x="35" y="21" width="6" height="5" rx="1.5"/><rect x="15" y="29" width="6" height="5" rx="1.5"/><rect x="23" y="29" width="6" height="5" rx="1.5"/><rect x="31" y="29" width="6" height="5" rx="1.5"/><rect x="18" y="36" width="20" height="3.4" rx="1.5"/></g></svg>
+          <div><h3>Typing never sets it off</h3><p>Keystrokes shake a laptop too. Any bump within 0.3 seconds of a key press or click is ignored, so writing an email won't start Dictation.</p></div>
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="how">
+      <h2 id="how">How a knock becomes a microphone</h2>
+      <p>Apple-silicon MacBooks carry an accelerometer that macOS doesn't advertise. It streams about 800 readings a second, and any app can read it without admin rights. NotchMic watches that stream for jolts.</p>
+      <figure>
+        <svg class="trace" viewBox="0 0 680 190" role="img" aria-label="Illustration: a flat sensor reading with two sharp spikes about 0.16 seconds apart, both crossing a dashed line at 0.02 g.">
+          <line x1="20" y1="150" x2="660" y2="150" stroke="#23252B" stroke-opacity=".25"/>
+          <line x1="20" y1="110" x2="660" y2="110" stroke="#1F63C9" stroke-dasharray="6 6"/>
+          <text x="660" y="102" text-anchor="end" font-size="13" fill="#1F63C9" font-family="Atkinson Hyperlegible, sans-serif">counts as a tap: 0.02 g</text>
+          <path d="M20 150 L120 149 L160 151 L230 150 L246 150 L252 40 L258 132 L264 92 L270 146 L276 138 L284 150 L330 150 L342 150 L348 52 L354 128 L360 100 L366 147 L372 140 L380 150 L470 151 L560 149 L660 150" fill="none" stroke="#23252B" stroke-width="2.4" stroke-linejoin="round"/>
+          <text x="252" y="30" text-anchor="middle" font-size="13" fill="#565A64" font-family="Atkinson Hyperlegible, sans-serif">tap</text>
+          <text x="348" y="42" text-anchor="middle" font-size="13" fill="#565A64" font-family="Atkinson Hyperlegible, sans-serif">tap</text>
+          <text x="300" y="178" text-anchor="middle" font-size="13" fill="#565A64" font-family="Atkinson Hyperlegible, sans-serif">0.16 s apart</text>
+          <text x="80" y="140" font-size="13" fill="#565A64" font-family="Atkinson Hyperlegible, sans-serif">at rest: under 0.002 g</text>
+        </svg>
+        <figcaption>Illustration of a double tap. Real taps measured 0.02 to 0.10 g.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li>A reading more than 0.02 g away from the running average is a jolt.</li>
+        <li>Jolts within 0.1 seconds of each other are one tap still ringing.</li>
+        <li>NotchMic waits 0.15 seconds, then drops the tap if a key or click happened nearby.</li>
+        <li>Two taps 0.12 to 0.6 seconds apart press the frontmost app's Start Dictation. The next pair sends Escape to stop it.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="install">
+      <h2 id="install">Install</h2>
+      <ol class="steps">
+        <li><a href="https://github.com/WallaceMcCarthy/NotchMic/releases/latest/download/NotchMic.zip">Download NotchMic.zip</a>, unzip it, and drag NotchMic into Applications.</li>
+        <li>Open it. NotchMic isn't notarized by Apple, so the first launch is blocked. Go to System Settings, then Privacy &amp; Security, and click Open Anyway. Or run:
+<pre><code>xattr -dr com.apple.quarantine /Applications/NotchMic.app</code></pre></li>
+        <li>Allow Accessibility when asked. NotchMic uses it to press the Dictation menu item and to notice your typing. It never records which keys you press.</li>
+        <li>Turn on Dictation in System Settings, under Keyboard.</li>
+        <li>Add NotchMic to Login Items if you want it running all the time.</li>
+      </ol>
+    </section>
+
+    <footer>
+      <p>NotchMic is MIT licensed. Every threshold is a setting you can change. The source, tuning guide and build steps are on <a href="https://github.com/WallaceMcCarthy/NotchMic">GitHub</a>.</p>
+    </footer>
+  </div>
+</main>
+
+<script>
+(() => {
+  const screen = document.getElementById('screen');
+  const glass = document.getElementById('glass');
+  const mic = document.getElementById('mic');
+  const headline = document.getElementById('headline');
+  const heard = document.getElementById('heard');
+  const hint = document.getElementById('hint');
+  const ripples = document.getElementById('ripples');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const phrases = [
+    'Remind me to call Sam after lunch.',
+    'Dear team, the build is green and shipping today.',
+    'Two taps on the laptop and I am already typing this.',
+    'Add oat milk, lemons and coffee to the list.'
+  ];
+  let listening = false, timer = null, phrase = 0;
+
+  function type(el, text, done) {
+    clearInterval(timer);
+    if (calm) { el.textContent = text; done && done(); return; }
+    el.textContent = '';
+    let i = 0;
+    const caret = document.createElement('span'); caret.className = 'caret';
+    el.append(caret);
+    timer = setInterval(() => {
+      caret.before(text[i++]);
+      if (i >= text.length) { clearInterval(timer); setTimeout(() => { caret.remove(); done && done(); }, 900); }
+    }, 42);
+  }
+
+  function ripple(x, y) {
+    if (calm) return;
+    const r = glass.getBoundingClientRect();
+    for (const delay of [0, 160]) {
+      const s = document.createElement('span');
+      s.style.left = (x - r.left) + 'px'; s.style.top = (y - r.top) + 'px';
+      s.style.animationDelay = delay + 'ms';
+      ripples.append(s);
+      setTimeout(() => s.remove(), 900 + delay);
+    }
+  }
+
+  function listenLoop() {
+    if (!listening) return;
+    type(heard, phrases[phrase++ % phrases.length], () => setTimeout(listenLoop, 700));
+  }
+
+  function toggle() {
+    listening = !listening;
+    screen.classList.toggle('listening', listening);
+    mic.setAttribute('aria-pressed', String(listening));
+    if (listening) {
+      hint.textContent = 'Listening. Do it again to stop.';
+      listenLoop();
+    } else {
+      clearInterval(timer);
+      heard.textContent = '';
+      hint.textContent = 'Stopped. Do it again to start.';
+    }
+  }
+
+  // Double tap or double click on the screen, like knocking twice on the laptop.
+  let last = 0;
+  glass.addEventListener('pointerup', e => {
+    const now = performance.now();
+    if (now - last < 500) { ripple(e.clientX, e.clientY); toggle(); last = 0; }
+    else last = now;
+  });
+  mic.addEventListener('click', toggle);
+
+  type(headline, 'Tap twice. Start talking.');
+})();
+</script>
+</body>
+</html>
