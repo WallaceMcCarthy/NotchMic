@@ -104,11 +104,12 @@ final class KnockSensor {
     lazy var taps = d.object(forKey: "taps") as? Int ?? 2                   // 1 = single tap, 2 = double tap
     lazy var cooldown = d.object(forKey: "cooldown") as? Double ?? 1.5      // s after a trigger when taps are ignored
     lazy var quiet = d.object(forKey: "quiet") as? Double ?? 0.3            // s; bumps this close to a key or click are typing
+    lazy var sideways = d.object(forKey: "sideways") as? Double ?? 1.0      // a tap's sideways jolt must stay below this times its vertical jolt
     let settle = 0.15                                                       // s to wait so a late key event can still veto the bump
     var lastBump = 0.0, lastFire = 0.0
     var avg: (Double, Double, Double)?
     var lastKnock = 0.0, lastInput = 0.0
-    var spikePeak = 0.0
+    var spikePeak = 0.0, spikeVert = 0.0, spikeSide = 0.0
     var manager: IOHIDManager!
     let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: 64)
 
@@ -127,7 +128,7 @@ final class KnockSensor {
         IOHIDManagerSetDeviceMatching(manager, [kIOHIDPrimaryUsagePageKey: 0xFF00, kIOHIDPrimaryUsageKey: 3] as CFDictionary)
         IOHIDManagerOpen(manager, 0)
         let devs = (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>) ?? []
-        trace("knock sensor: \(devs.count) device(s), threshold \(threshold) g, ring \(ring) s, taps \(taps), gap \(gap)")
+        trace("knock sensor: \(devs.count) device(s), threshold \(threshold) g, sideways \(sideways), ring \(ring) s, taps \(taps), gap \(gap)")
         let me = Unmanaged.passUnretained(self).toOpaque()
         for d in devs {
             IOHIDDeviceRegisterInputReportCallback(d, buf, 64, { ctx, _, _, _, _, p, len in
@@ -165,20 +166,29 @@ final class KnockSensor {
         }
         let v = (g(6), g(10), g(14))
         guard var a = avg else { avg = v; return }
-        let dist = ((v.0-a.0)*(v.0-a.0) + (v.1-a.1)*(v.1-a.1) + (v.2-a.2)*(v.2-a.2)).squareRoot()
+        let jolt = (v.0-a.0, v.1-a.1, v.2-a.2)
+        let dist = (jolt.0*jolt.0 + jolt.1*jolt.1 + jolt.2*jolt.2).squareRoot()
+        // The running average is gravity, so it marks "down" even on a tilted laptop: split the jolt into vertical and sideways.
+        let gl = max((a.0*a.0 + a.1*a.1 + a.2*a.2).squareRoot(), 1e-6)
+        let vert = abs((jolt.0*a.0 + jolt.1*a.1 + jolt.2*a.2) / gl)
+        let side = max(dist*dist - vert*vert, 0).squareRoot()
         a = (a.0*0.98 + v.0*0.02, a.1*0.98 + v.1*0.02, a.2*0.98 + v.2*0.02); avg = a
         guard dist > threshold else { return }
         let now = ProcessInfo.processInfo.systemUptime
         defer { lastBump = now }
-        spikePeak = max(spikePeak, dist)
-        if now - lastBump < ring { return }   // same tap still ringing
-        spikePeak = dist
+        if now - lastBump < ring {   // same bump still ringing
+            spikePeak = max(spikePeak, dist); spikeVert = max(spikeVert, vert); spikeSide = max(spikeSide, side)
+            return
+        }
+        spikePeak = dist; spikeVert = vert; spikeSide = side
         DispatchQueue.main.asyncAfter(deadline: .now() + settle) { self.knock(at: now) }
     }
 
     func knock(at t: Double) {
-        let peak = String(format: "%.3f g", spikePeak)
+        let peak = String(format: "%.3f g (vertical %.3f, sideways %.3f)", spikePeak, spikeVert, spikeSide)
         if abs(lastInput - t) < quiet { lastKnock = 0; return trace("bump \(peak) ignored (input: \(lastInputWhat))") }
+        // Only a tap down on the body counts; sliding or bumping the laptop sideways does not.
+        if spikeVert < threshold || spikeSide > sideways * spikeVert { lastKnock = 0; return trace("bump \(peak) ignored (sideways)") }
         if t - lastFire < cooldown { return trace("tap \(peak) ignored (cooldown)") }
         trace("tap \(peak)")
         if taps == 1 || gap.contains(t - lastKnock) {

@@ -21,6 +21,7 @@
 
 - **Double-tap the laptop.** Knock twice on the body of your MacBook and macOS Dictation starts. Double-tap again and it stops. NotchMic reads the motion sensor hidden inside Apple-silicon MacBooks, so there's no new hardware.
 - **Click beside the notch.** A faint mic sits just right of the camera notch. Click it to start Dictation, click again to stop.
+- **Only taps down count.** NotchMic splits every jolt into its vertical and sideways parts, using gravity to tell which way is down. Sliding the laptop across a desk or bumping it from the side is ignored.
 - **Ignores your typing.** Typing and clicking shake the laptop too. NotchMic throws away any bump that lands within 0.3 s of a key press or click, so writing an email won't start it.
 - **Works in any app.** It presses the frontmost app's own **Edit → Start Dictation** menu item, so your words land wherever your cursor is.
 - **Invisible.** No Dock icon, no menu bar clutter, no window. One 170 KB app.
@@ -52,6 +53,7 @@ Apple-silicon MacBooks carry an accelerometer that macOS doesn't advertise. It s
 NotchMic keeps a running average of those readings and watches for sudden jolts:
 
 1. **A jolt** is any reading more than 0.02 g from the average. At rest, jitter stays under 0.002 g. A firm tap measures 0.02 to 0.10 g.
+   The average is gravity, so it marks which way is down. Each jolt is split into a vertical part and a sideways part, and it only counts as a tap when the vertical part clears 0.02 g and the sideways part is smaller. A tap on the palm rest measured about 0.04 g down and under 0.013 g sideways; a shove from the side, 0.077 g sideways and 0.003 g down.
 2. **One tap rings** for a moment, so jolts within 0.1 s of each other count as the same tap.
 3. **It waits 0.15 s** before deciding, then throws the jolt out if a key or click happened within 0.3 s of it. Key events can arrive after the vibration they cause, which is why it waits.
 4. **Two taps 0.12 to 0.6 s apart** toggle Dictation. Further taps are ignored for 1.5 s.
@@ -64,6 +66,7 @@ Every number above is a setting. Change it and restart the app, no rebuild neede
 
 ```bash
 defaults write local.notchmic threshold -float 0.03   # harder taps needed (g)
+defaults write local.notchmic sideways -float 0.5     # stricter about sideways movement (ratio to vertical)
 defaults write local.notchmic gapMax -float 0.8       # allow slower double taps (s)
 defaults write local.notchmic taps -int 1             # single tap instead of double
 defaults write local.notchmic cooldown -float 2       # pause after a toggle (s)

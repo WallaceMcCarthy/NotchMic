@@ -311,7 +311,7 @@ footer {
         <figcaption>Illustration of a double tap. Real taps measured 0.02 to 0.10 g.</figcaption>
       </figure>
       <ol class="steps">
-        <li>A reading more than 0.02 g away from the running average is a jolt.</li>
+        <li>A reading more than 0.02 g away from the running average is a jolt. The average is gravity, so NotchMic knows which way is down and splits each jolt into vertical and sideways parts. Only jolts that go mostly down count, so sliding the laptop does nothing.</li>
         <li>Jolts within 0.1 seconds of each other are one tap still ringing.</li>
         <li>NotchMic waits 0.15 seconds, then drops the tap if a key or click happened nearby.</li>
         <li>Two taps 0.12 to 0.6 seconds apart press the frontmost app's Start Dictation. The next pair sends Escape to stop it.</li>
